@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block head %}
+<script src="/static/bcrypt.js" defer></script>
+<script src="/static/dashboard.js" defer></script>
+{% endblock %}
+{% block content %}
+<h2>Lista haseł:</h2>
+<form onsubmit="validatePassForm(); return false" method="POST" action="/dashboard" id ="passform" enctype="multipart/form-data">
+    <ul id="formlist">
+        <li><input type="text" id="name" name="name" placeholder="Nazwa serwisu" required></li>
+        <li><input type="password" id="password" placeholder="Hasło do serwisu" required></li>
+        <li><input type="password" id="masterpass" placeholder="Hasło główne" required></li>
+        <li><input type="submit" id="submitbtn" value="Dodaj Hasło"></li>
+    </ul>
+</form>
+{% if passwords %}
+    <ul>
+        {% for password in passwords %}
+        <li><span>{{ password }}</span></br>
+            <span class="encpass">hasło: {{ passwords[password].get("encryptedpw") }}</span></br>
+            <input type="button" class="decryptbtn" value="Odszyfruj">
+            <span style="display:none" class="arrpass">{{ passwords[password].get("arraypass") }}</span>
+            <span style="display:none" class="salt">{{ passwords[password].get("salt") }}</span>
+            <span style="display:none" class="iv">{{ passwords[password].get("iv") }}
+        </span></li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+{% endblock %}

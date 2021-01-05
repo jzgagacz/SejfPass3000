@@ -1,0 +1,34 @@
+<!doctype>
+<html>
+    <head>
+        {% block head %}{% endblock %}
+    </head>
+    <body>
+        <header>
+            <h1>SejfPass3000</h1>
+            <h2>by Jakub Zgagacz</h2>
+        </header>
+        <nav>
+            <a href="/">Strona główna</a>
+            <a href="/dashboard">Hasła</a>
+            {% if g.user is none %}
+                <a href="/login">Zaloguj</a>
+            {% else %}
+                <a href="/logout">Wyloguj</a>
+            {% endif %}
+            <a href="/signup">Rejestracja</a>
+        </nav>
+        <main>
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <ul class=flashes>
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </main>
+    </body>
+</html>

@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+<form method="POST" action="/login">
+    <h2>Logowanie:</h2>
+    <ul id="formlist">
+        <li><input type="text" id="login" name="login" placeholder="Login" required></li>
+        <li><input type="password" id="password" name="password" placeholder="Hasło" required></li>
+        {% if captcha %}
+        <li>{{ recaptcha }}</li>
+        {% endif %}
+        <li><input type="submit" id="submitbtn" value="Zaloguj"></li>
+    </ul>
+</form>
+{% endblock %}

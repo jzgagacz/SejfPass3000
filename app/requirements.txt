@@ -1,0 +1,8 @@
+uwsgi
+Flask
+mariadb
+python-dotenv
+bcrypt
+uuid
+PyCryptodome
+flask-recaptcha
