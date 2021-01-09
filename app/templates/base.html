@@ -10,10 +10,11 @@
         </header>
         <nav>
             <a href="/">Strona główna</a>
-            <a href="/dashboard">Hasła</a>
             {% if g.user is none %}
                 <a href="/login">Zaloguj</a>
             {% else %}
+                <a href="/dashboard">Hasła</a>
+                <a href="/sessions">Historia logowania</a>
                 <a href="/logout">Wyloguj</a>
             {% endif %}
             <a href="/signup">Rejestracja</a>

@@ -3,6 +3,7 @@ from flask.helpers import make_response
 from flask_recaptcha import ReCaptcha
 import mariadb
 import time
+from datetime import datetime
 from uuid import uuid4
 from random import randrange
 
@@ -22,6 +23,9 @@ SESSION_MAX_AGE = 1800
 MAX_LOGIN_ATTEMPTS = 3
 RECAPTCHA_SITE_KEY = getenv("RECAPTCHA_SITE_KEY")
 RECAPTCHA_SECRET_KEY = getenv("RECAPTCHA_SECRET_KEY")
+HONEYPOT_USER = getenv("HONEYPOT_USER")
+HONEYPOT_PASS = getenv("HONEYPOT_PASS")
+HONEYPOT_HASH = getenv("HONEYPOT_HASH")
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -35,26 +39,6 @@ recaptcha = ReCaptcha(app=app)
 db = None
 cursor = None
 
-try:
-    time.sleep(3)
-    db = mariadb.connect(host=SQL_HOST,user=SQL_USR, password=SQL_PASS, database=SQL_DB)
-    cursor = db.cursor()
-except:
-    initdb = mariadb.connect(host=SQL_HOST,user=SQL_USR, password=SQL_PASS)
-    coursor = initdb.cursor()
-    coursor.execute(f"DROP DATABASE IF EXISTS {SQL_DB}")
-    coursor.execute(f"CREATE DATABASE {SQL_DB}")
-    coursor.execute(f"USE {SQL_DB}")
-    coursor.execute("DROP TABLE IF EXISTS users")
-    coursor.execute("CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, login VARCHAR(32), hashedpass VARCHAR(128), hashedmasterpass VARCHAR(128), loginattempts INT, UNIQUE (login))")
-    coursor.execute("DROP TABLE IF EXISTS sessions")
-    coursor.execute("CREATE TABLE sessions (id INT PRIMARY KEY AUTO_INCREMENT, sid VARCHAR(128), login VARCHAR(32), expires BIGINT)")
-    coursor.execute("DROP TABLE IF EXISTS passwords")
-    coursor.execute("CREATE TABLE passwords (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(128), encryptedpw VARBINARY(128), login VARCHAR(32), salt VARBINARY(32), iv VARBINARY(32))")
-    initdb.commit()
-    initdb.close()
-    db = mariadb.connect(host=SQL_HOST,user=SQL_USR, password=SQL_PASS, database=SQL_DB)
-    cursor = db.cursor()
 
 def user_exists(login):
     ret = None
@@ -136,17 +120,17 @@ def get_user_passwords(login):
             passwords[n]["iv"] = list(i)
         return passwords
     except Exception as e:
-        print(f"{e}", flush=True)
         return None
 
-def create_session(login):
+def create_session(login, ip, device):
     try:
         sid = str(uuid4())
-        exp = int(time.time()) + SESSION_MAX_AGE
-        cursor.execute("INSERT INTO sessions (sid, login, expires) VALUES (?, ?, ?)", (sid, login, exp))
+        logtime = int(time.time())
+        exp = logtime + SESSION_MAX_AGE
+        cursor.execute("INSERT INTO sessions (sid, login, logtime, expires, ip, useragent) VALUES (?, ?, ?, ?, ?, ?)", (sid, login, logtime, exp, ip, device))
         db.commit()
         return sid
-    except:
+    except Exception as e:
         return None
 
 def get_data_from_session(sid):
@@ -158,20 +142,59 @@ def get_data_from_session(sid):
             login = l
             exp = e
         if exp < int(time.time()):
-            cursor.execute("DELETE FROM sessions WHERE sid=?", (sid,))
-            db.commit()
             login = None
         return login
     except:
         return None
 
-def delete_session(sid):
+def expire_session(sid):
     try:
-        cursor.execute("DELETE FROM sessions WHERE sid=?", (sid,))
+        cursor.execute("UPDATE sessions SET expires=? WHERE sid=?", (-1,sid))
         db.commit()
         return True
     except:
         return False
+
+def get_user_sessions(login):
+    try:
+        cursor.execute("SELECT logtime, expires, ip, useragent FROM sessions WHERE login=?", (login,))
+        sessions = []
+        for (l, e, i, u) in cursor:
+            session = {}
+            session["logtime"] = datetime.utcfromtimestamp(l).strftime('%Y-%m-%d %H:%M:%S')
+            if e < int(time.time()):
+                session["expired"] = True
+            else:
+                session["expired"] = False
+            session["ip"] = i
+            session["useragent"] = u
+            sessions.insert(0, session)
+        return sessions
+    except Exception as e:
+        return None
+
+try:
+    time.sleep(3)
+    db = mariadb.connect(host=SQL_HOST,user=SQL_USR, password=SQL_PASS, database=SQL_DB)
+    cursor = db.cursor()
+except:
+    initdb = mariadb.connect(host=SQL_HOST,user=SQL_USR, password=SQL_PASS)
+    coursor = initdb.cursor()
+    coursor.execute(f"DROP DATABASE IF EXISTS {SQL_DB}")
+    coursor.execute(f"CREATE DATABASE {SQL_DB}")
+    coursor.execute(f"USE {SQL_DB}")
+    coursor.execute("DROP TABLE IF EXISTS users")
+    coursor.execute("CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, login VARCHAR(32), hashedpass VARCHAR(128), hashedmasterpass VARCHAR(128), loginattempts INT, UNIQUE (login))")
+    coursor.execute("DROP TABLE IF EXISTS sessions")
+    coursor.execute("CREATE TABLE sessions (id INT PRIMARY KEY AUTO_INCREMENT, sid VARCHAR(128), login VARCHAR(32), logtime BIGINT, expires BIGINT, ip VARCHAR(32), useragent VARCHAR(512))")
+    coursor.execute("DROP TABLE IF EXISTS passwords")
+    coursor.execute("CREATE TABLE passwords (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(128), encryptedpw VARBINARY(128), login VARCHAR(32), salt VARBINARY(32), iv VARBINARY(32))")
+    initdb.commit()
+    initdb.close()
+    db = mariadb.connect(host=SQL_HOST,user=SQL_USR, password=SQL_PASS, database=SQL_DB)
+    cursor = db.cursor()
+    save_user(HONEYPOT_USER, HONEYPOT_PASS, HONEYPOT_HASH)
+
 
 @app.before_request
 def before_request():
@@ -214,10 +237,14 @@ def login_post():
     if not success:
         flash("Niepoprawny login lub hasło")
         return redirect(url_for('login', captcha=captcha))
-    sid = create_session(login)
+    ip = request.remote_addr
+    device = request.headers.get("User-Agent")
+    sid = create_session(login, ip, device)
     if sid is None:
         flash("Błąd podczas tworzenia sesji użytkownika")
         return redirect(url_for('login', captcha=captcha))
+    if login == HONEYPOT_USER:
+        print("!!!KTOŚ ZALOGOWAŁ SIĘ NA KONTO PUŁAPKĘ!!!", flush=True)
     response = make_response('', 303)
     response.set_cookie("session_id", sid, httponly=True, secure=True, max_age=SESSION_MAX_AGE)
     response.headers["Location"] = url_for("dashboard")
@@ -228,7 +255,7 @@ def logout():
     if g.user is None:
         return redirect(url_for('index'))
     sid = request.cookies.get('session_id', None)
-    success = delete_session(sid)
+    success = expire_session(sid)
     if not success:
         flash("Błąd podczas wylogowywania")
         return redirect(url_for('index'))
@@ -308,6 +335,15 @@ def masterhash():
     if hash is None:
         return "Cannot get hash", 500
     return hash, 200
+
+@app.route('/sessions', methods=["GET"])
+def sessions():
+    if g.user is None:
+        return redirect(url_for('login'))
+    sessions = get_user_sessions(g.user)
+    if sessions is None:
+        flash("Nie można pobrać listy sesji")
+    return render_template('sessions.html', sessions=sessions)
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0")

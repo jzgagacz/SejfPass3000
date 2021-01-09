@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Ostatnie logowania:</h2>
+{% if sessions %}
+    <ul>
+        {% for session in sessions %}
+        <li>
+            <span>Czas logowania (UTC): {{ session.get("logtime") }}</span></br>
+            <span>IP: {{ session.get("ip") }}</span></br>
+            <span>Urządzenie: {{ session.get("useragent") }}</span></br>
+            <span>Sesja wygasła: {% if session.get("expired") %}Tak{% else %}Nie{% endif %}</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+{% endblock %}
