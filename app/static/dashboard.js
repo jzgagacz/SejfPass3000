@@ -12,7 +12,7 @@ function validPass(pass){
   if (!pass){
     return false;
   }
-  if (pass.length < 8){
+  if (pass.length < 8 || pass.length > 40){
     return false;
   }
   if (!/\d/.test(pass)){
@@ -142,7 +142,7 @@ function getmasterhash(callback) {
 
 async function validatePassForm() {
   if (!validPass(password.value)){
-    alert("Za słabe hasło. Hasło musi zawierać co najmniej 8 znaków i zawierać: wielką literę, małą literę, cyfrę oraz znak specjalny.");
+    alert("Za słabe hasło. Hasło musi zawierać od 8 do 40 znaków i zawierać: wielką literę, małą literę, cyfrę oraz znak specjalny.");
     return false;
   }
   getmasterhash(async function(result) {      

@@ -11,7 +11,7 @@ function validPass(pass){
   if (!pass){
     return false;
   }
-  if (pass.length < 8){
+  if (pass.length < 8 || pass.length > 40){
     return false;
   }
   if (!/\d/.test(pass)){
@@ -43,11 +43,11 @@ function validateForm() {
       return false;
     }
     if (!validPass(password.value)){
-      alert("Za słabe hasło. Hasło musi zawierać co najmniej 8 znaków i zawierać: wielką literę, małą literę, cyfrę oraz znak specjalny.");
+      alert("Za słabe hasło. Hasło musi zawierać od 8 do 40 znaków i zawierać: wielką literę, małą literę, cyfrę oraz znak specjalny.");
       return false;
     }
     if (!validPass(masterpass.value)){
-      alert("Za słabe hasło główne. Hasło musi zawierać co najmniej 8 znaków i zawierać: wielką literę, małą literę, cyfrę oraz znak specjalny.");
+      alert("Za słabe hasło główne. Hasło musi zawierać od 8 do 40 znaków i zawierać: wielką literę, małą literę, cyfrę oraz znak specjalny.");
       return false;
     }
     let hash = bcrypt.hashSync(masterpass.value, 12);

@@ -7,9 +7,10 @@
 <h2>Lista haseł:</h2>
 <form onsubmit="validatePassForm(); return false" method="POST" action="/dashboard" id ="passform" enctype="multipart/form-data">
     <ul id="formlist">
-        <li><input type="text" id="name" name="name" placeholder="Nazwa serwisu" required></li>
-        <li><input type="password" id="password" placeholder="Hasło do serwisu" required></li>
-        <li><input type="password" id="masterpass" placeholder="Hasło główne" required></li>
+        <input type="hidden" id="csrf-token" name="csrf-token" value="{{ csrf }}">
+        <li><input type="text" id="name" name="name" placeholder="Nazwa serwisu" minlength="1" maxlength="100" required></li>
+        <li><input type="password" id="password" placeholder="Hasło do serwisu" minlength="8" maxlength="40" required></li>
+        <li><input type="password" id="masterpass" placeholder="Hasło główne" minlength="8" maxlength="40" required></li>
         <li><input type="submit" id="submitbtn" value="Dodaj Hasło"></li>
     </ul>
 </form>

@@ -1,3 +1,4 @@
+from logging import log
 from flask import Flask, render_template, request, redirect, url_for, flash, g
 from flask.helpers import make_response
 from flask_recaptcha import ReCaptcha
@@ -6,12 +7,13 @@ import time
 from datetime import datetime
 from uuid import uuid4
 from random import randrange
+import re
+from secrets import token_urlsafe
 
 from os import getenv
 from dotenv import load_dotenv
 
 from bcrypt import gensalt, hashpw, checkpw
-from Crypto.Cipher import AES
 
 load_dotenv()
 SQL_HOST = "mariadb"
@@ -26,6 +28,7 @@ RECAPTCHA_SECRET_KEY = getenv("RECAPTCHA_SECRET_KEY")
 HONEYPOT_USER = getenv("HONEYPOT_USER")
 HONEYPOT_PASS = getenv("HONEYPOT_PASS")
 HONEYPOT_HASH = getenv("HONEYPOT_HASH")
+HONEYPOT_EMAIL = getenv("HONEYPOT_EMAIL")
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -47,10 +50,10 @@ def user_exists(login):
         ret = record
     return ret
 
-def save_user(login, password, masterhash):
+def save_user(login, password, masterhash, email):
     try:
         hashed = hashpw(password.encode(), gensalt()).decode()
-        cursor.execute("INSERT INTO users (login, hashedpass, hashedmasterpass, loginattempts) VALUES (?, ?, ?, ?)", (login, hashed, masterhash, 0))
+        cursor.execute("INSERT INTO users (login, hashedpass, hashedmasterpass, loginattempts, email) VALUES (?, ?, ?, ?, ?)", (login, hashed, masterhash, 0, email))
         db.commit()
         return True
     except:
@@ -122,12 +125,12 @@ def get_user_passwords(login):
     except Exception as e:
         return None
 
-def create_session(login, ip, device):
+def create_session(login, ip, device, csrftoken):
     try:
         sid = str(uuid4())
         logtime = int(time.time())
         exp = logtime + SESSION_MAX_AGE
-        cursor.execute("INSERT INTO sessions (sid, login, logtime, expires, ip, useragent) VALUES (?, ?, ?, ?, ?, ?)", (sid, login, logtime, exp, ip, device))
+        cursor.execute("INSERT INTO sessions (sid, login, logtime, expires, ip, useragent, csrftoken) VALUES (?, ?, ?, ?, ?, ?, ?)", (sid, login, logtime, exp, ip, device, csrftoken))
         db.commit()
         return sid
     except Exception as e:
@@ -135,17 +138,19 @@ def create_session(login, ip, device):
 
 def get_data_from_session(sid):
     try:
-        cursor.execute("SELECT login, expires FROM sessions WHERE sid=?", (sid,))
+        cursor.execute("SELECT login, expires, csrftoken FROM sessions WHERE sid=?", (sid,))
         login = None
         exp = None
-        for (l,e) in cursor:
+        csrftoken = None
+        for (l,e,c) in cursor:
             login = l
             exp = e
+            csrftoken = c
         if exp < int(time.time()):
-            login = None
-        return login
+            return (None, None)
+        return (login, csrftoken)
     except:
-        return None
+        return (None, None)   
 
 def expire_session(sid):
     try:
@@ -184,27 +189,27 @@ except:
     coursor.execute(f"CREATE DATABASE {SQL_DB}")
     coursor.execute(f"USE {SQL_DB}")
     coursor.execute("DROP TABLE IF EXISTS users")
-    coursor.execute("CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, login VARCHAR(32), hashedpass VARCHAR(128), hashedmasterpass VARCHAR(128), loginattempts INT, UNIQUE (login))")
+    coursor.execute("CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, login VARCHAR(32), hashedpass VARCHAR(128), hashedmasterpass VARCHAR(128), loginattempts INT, email VARCHAR(128), UNIQUE (login))")
     coursor.execute("DROP TABLE IF EXISTS sessions")
-    coursor.execute("CREATE TABLE sessions (id INT PRIMARY KEY AUTO_INCREMENT, sid VARCHAR(128), login VARCHAR(32), logtime BIGINT, expires BIGINT, ip VARCHAR(32), useragent VARCHAR(512))")
+    coursor.execute("CREATE TABLE sessions (id INT PRIMARY KEY AUTO_INCREMENT, sid VARCHAR(128), login VARCHAR(32), logtime BIGINT, expires BIGINT, ip VARCHAR(32), useragent VARCHAR(512), csrftoken VARCHAR(64))")
     coursor.execute("DROP TABLE IF EXISTS passwords")
-    coursor.execute("CREATE TABLE passwords (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(128), encryptedpw VARBINARY(128), login VARCHAR(32), salt VARBINARY(32), iv VARBINARY(32))")
+    coursor.execute("CREATE TABLE passwords (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(128), encryptedpw VARBINARY(512), login VARCHAR(32), salt VARBINARY(32), iv VARBINARY(32))")
     initdb.commit()
     initdb.close()
     db = mariadb.connect(host=SQL_HOST,user=SQL_USR, password=SQL_PASS, database=SQL_DB)
     cursor = db.cursor()
-    save_user(HONEYPOT_USER, HONEYPOT_PASS, HONEYPOT_HASH)
+    save_user(HONEYPOT_USER, HONEYPOT_PASS, HONEYPOT_HASH, HONEYPOT_EMAIL)
 
 
 @app.before_request
 def before_request():
     sid = request.cookies.get('session_id', None)
-    login = get_data_from_session(sid)
+    (login, csrftoken) = get_data_from_session(sid)
     g.user = login
+    g.csrf = csrftoken
 
 @app.route('/', methods=["GET"])
 def index():
-    print(recaptcha.secret_key, flush=True)
     return render_template("index.html")
 
 @app.route('/login', methods=["GET"])
@@ -226,6 +231,10 @@ def login_post():
         return "No login provided", 400
     if password is None:
         return "No password provided", 400
+    if len(login) < 3 or len(login) > 20:
+        return "Wrong login length", 400
+    if len(password) < 8 or len(password) > 40:
+        return "Wrong password length", 400
     attempts = get_login_attempts(login)
     captcha = False
     if attempts > MAX_LOGIN_ATTEMPTS:
@@ -239,7 +248,8 @@ def login_post():
         return redirect(url_for('login', captcha=captcha))
     ip = request.remote_addr
     device = request.headers.get("User-Agent")
-    sid = create_session(login, ip, device)
+    csrftoken = token_urlsafe(32)
+    sid = create_session(login, ip, device, csrftoken)
     if sid is None:
         flash("Błąd podczas tworzenia sesji użytkownika")
         return redirect(url_for('login', captcha=captcha))
@@ -273,12 +283,23 @@ def signup_post():
     login = request.form.get("login")
     password = request.form.get("password")
     masterhash = request.form.get("masterhash")
+    email = request.form.get("email")
     if login is None:
         return "No login provided", 400
     if password is None:
         return "No password provided", 400
     if masterhash is None:
         return "No master password hash provided", 400
+    if email is None:
+        return "No email provided", 400
+    if len(login) < 3 or len(login) > 20:
+        return "Wrong login length", 400
+    if len(password) < 8 or len(password) > 40:
+        return "Wrong password length", 400
+    if len(masterhash) < 1 or len(masterhash) > 100:
+        return "Wrong master password hash length", 400
+    if len(email) < 3 or len(email) > 100:
+        return "Wrong email length", 400
     try: 
         s = user_exists(login)
     except:
@@ -287,7 +308,7 @@ def signup_post():
     if s == 1:
         flash("Użytkownik już istnieje")
         return redirect(url_for('signup'))
-    success = save_user(login, password, masterhash)
+    success = save_user(login, password, masterhash, email)
     if not success:
         flash("Błąd podczas rejestracji użytkownika")
         return redirect(url_for('signup'))
@@ -300,16 +321,21 @@ def dashboard():
     passwords = get_user_passwords(g.user)
     if passwords is None:
         flash("Nie można pobrać listy haseł")
-    return render_template("dashboard.html", passwords=passwords)
+    return render_template("dashboard.html", passwords=passwords, csrf = g.csrf)
 
 @app.route('/dashboard', methods=["POST"])
 def dashboard_post():
     if g.user is None:
         return "Unauthorized", 401
+    csrf = request.form.get("csrf-token")
     name = request.form.get("name")
     encryptedpw = request.form.get("encryptedpw")
     salt = request.form.get("salt")
     iv = request.form.get("iv")
+    if csrf is None:
+        return "No csrf token provided", 400
+    if csrf != g.csrf:
+        return "Incorrect csrf token", 400
     if name is None:
         return "No service name provided", 400
     if encryptedpw is None:
@@ -318,9 +344,25 @@ def dashboard_post():
         return "No salt provided", 400
     if iv is None:
         return "No iv provided", 400
+    if len(name) < 1 or len(name) > 100:
+        return "Wrong service name length", 400
+    print(encryptedpw, flush=True)
+    print(type(encryptedpw), flush=True)
+    if not re.compile('^[0-9,]*$').match(encryptedpw):
+        return "Wrong encrypted password provided", 400
+    if not re.compile('^[0-9,]*$').match(salt):
+        return "Wrong saslt provided", 400
+    if not re.compile('^[0-9,]*$').match(iv):
+        return "Wrong iv provided", 400
     bencryptedpw = bytes(list(map(int, encryptedpw.split(","))))
     bsalt = bytes(list(map(int, salt.split(","))))
     biv = bytes(list(map(int, iv.split(","))))
+    if len(bencryptedpw) < 1 or len(bencryptedpw) > 500:
+        return "Wrong encrypted password length", 400
+    if len(bsalt) < 1 or len(bsalt) > 30:
+        return "Wrong salt length", 400
+    if len(biv) < 1 or len(biv) > 30:
+        return "Wrong iv length", 400
     success = add_password(g.user, name, bencryptedpw, bsalt,biv)
     if not success:
         flash("Błąd podczas dodawania hasła")

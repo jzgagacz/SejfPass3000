@@ -3,8 +3,8 @@
 <form method="POST" action="/login">
     <h2>Logowanie:</h2>
     <ul id="formlist">
-        <li><input type="text" id="login" name="login" placeholder="Login" required></li>
-        <li><input type="password" id="password" name="password" placeholder="Hasło" required></li>
+        <li><input type="text" id="login" name="login" placeholder="Login" minlength="3" maxlength="20" required></li>
+        <li><input type="password" id="password" name="password" placeholder="Hasło" minlength="8" maxlength="40" required></li>
         {% if captcha %}
         <li>{{ recaptcha }}</li>
         {% endif %}

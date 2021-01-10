@@ -7,11 +7,12 @@
 <form onsubmit="return validateForm()" method="POST" action="/signup" id="signupform" enctype="multipart/form-data">
     <h2>Rejestracja:</h2>
     <ul id="formlist">
-        <li><input type="text" id="login" name="login" placeholder="Login" required></li>
-        <li><input type="password" id="password" name="password" placeholder="Hasło" required></li>
-        <li><input type="password" id="repeatpassword" placeholder="Powtórz hasło" required></li>
-        <li><input type="password" id="masterpass" placeholder="Hasło główne" required></li>
-        <li><input type="password" id="repeatmasterpass" placeholder="Powtórz hasło główne" required></li>
+        <li><input type="text" id="login" name="login" placeholder="Login" minlength="3" maxlength="20" required></li>
+        <li><input type="email" id="email" name="email" placeholder="Adres e-mail" minlength="3" maxlength="100" required></li>
+        <li><input type="password" id="password" name="password" placeholder="Hasło" minlength="8" maxlength="40" required></li>
+        <li><input type="password" id="repeatpassword" placeholder="Powtórz hasło" minlength="8" maxlength="40" required></li>
+        <li><input type="password" id="masterpass" placeholder="Hasło główne" minlength="8" maxlength="40" required></li>
+        <li><input type="password" id="repeatmasterpass" placeholder="Powtórz hasło główne" minlength="8" maxlength="40" required></li>
         <li><input type="submit" id="submitbtn" value="Zarejestruj"></li>
     </ul>
 </form>
