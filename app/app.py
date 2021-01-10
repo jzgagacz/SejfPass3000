@@ -31,6 +31,8 @@ HONEYPOT_PASS = getenv("HONEYPOT_PASS")
 HONEYPOT_HASH = getenv("HONEYPOT_HASH")
 HONEYPOT_EMAIL = getenv("HONEYPOT_EMAIL")
 
+FIELD_REGEX = '^[A-Za-z0-9!@#$%^&*,.=_|:+\/\\\-]*$'
+
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 app.config.update({
@@ -223,7 +225,7 @@ except:
     coursor.execute("DROP TABLE IF EXISTS users")
     coursor.execute("CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, login VARCHAR(32), hashedpass VARCHAR(128), hashedmasterpass VARCHAR(128), loginattempts INT, email VARCHAR(128), UNIQUE (login))")
     coursor.execute("DROP TABLE IF EXISTS sessions")
-    coursor.execute("CREATE TABLE sessions (id INT PRIMARY KEY AUTO_INCREMENT, sid VARCHAR(128), login VARCHAR(32), logtime BIGINT, expires BIGINT, ip VARCHAR(32), useragent VARCHAR(512), csrftoken VARCHAR(64))")
+    coursor.execute("CREATE TABLE sessions (id INT PRIMARY KEY AUTO_INCREMENT, sid VARCHAR(128), login VARCHAR(32), logtime BIGINT, expires BIGINT, ip VARCHAR(32), useragent VARCHAR(512), csrftoken VARCHAR(128))")
     coursor.execute("DROP TABLE IF EXISTS passwords")
     coursor.execute("CREATE TABLE passwords (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(128), encryptedpw VARBINARY(512), login VARCHAR(32), salt VARBINARY(32), iv VARBINARY(32))")
     initdb.commit()
@@ -267,6 +269,10 @@ def login_post():
         return "Wrong login length", 400
     if len(password) < 8 or len(password) > 40:
         return "Wrong password length", 400
+    if not re.compile(FIELD_REGEX).match(login):
+        return "Invalid character in login", 400
+    if not re.compile(FIELD_REGEX).match(password):
+        return "Invalid character in password", 400
     attempts = get_login_attempts(login)
     captcha = False
     if attempts > MAX_LOGIN_ATTEMPTS:
@@ -332,6 +338,14 @@ def signup_post():
         return "Wrong master password hash length", 400
     if len(email) < 3 or len(email) > 100:
         return "Wrong email length", 400
+    if not re.compile(FIELD_REGEX).match(login):
+        return "Invalid character in login", 400
+    if not re.compile(FIELD_REGEX).match(password):
+        return "Invalid character in password", 400
+    if not re.compile(FIELD_REGEX).match(masterhash):
+        return "Invalid character in masterhash", 400
+    if not re.compile(FIELD_REGEX).match(email):
+        return "Invalid character in email", 400
     try: 
         s = user_exists(login)
     except:
@@ -378,14 +392,18 @@ def dashboard_post():
         return "No iv provided", 400
     if len(name) < 1 or len(name) > 100:
         return "Wrong service name length", 400
-    print(encryptedpw, flush=True)
-    print(type(encryptedpw), flush=True)
+    if len(csrf) < 1 or len(csrf) > 128:
+        return "Wrong csrf token length", 400
+    if not re.compile(FIELD_REGEX).match(name):
+        return "Invalid character in name", 400
+    if not re.compile(FIELD_REGEX).match(csrf):
+        return "Invalid character in csrf token", 400
     if not re.compile('^[0-9,]*$').match(encryptedpw):
-        return "Wrong encrypted password provided", 400
+        return "Invalid encrypted password provided", 400
     if not re.compile('^[0-9,]*$').match(salt):
-        return "Wrong saslt provided", 400
+        return "Invalid salt provided", 400
     if not re.compile('^[0-9,]*$').match(iv):
-        return "Wrong iv provided", 400
+        return "Invalid iv provided", 400
     bencryptedpw = bytes(list(map(int, encryptedpw.split(","))))
     bsalt = bytes(list(map(int, salt.split(","))))
     biv = bytes(list(map(int, iv.split(","))))
@@ -431,6 +449,8 @@ def reset_password_post():
         return "No login provided", 400
     if len(login) < 3 or len(login) > 20:
         return "Wrong login length", 400
+    if not re.compile(FIELD_REGEX).match(login):
+        return "Invalid character in login", 400
     try: 
         s = user_exists(login)
     except:
@@ -440,7 +460,9 @@ def reset_password_post():
         email = get_user_email(login)
         token = generate_password_reset_token(login)
         url = request.base_url + "/" + token
+        print("!!! RESET HASLA !!!", flush=True)
         print(f"Wysłałbym wiadomość pod adres {email} o treści: Aby zresetować swoje hasło przejdź pod link {url}",flush=True)
+        print("!!! RESET HASLA !!!", flush=True)
     return redirect(url_for('index'))
 
 @app.route('/reset/<token>', methods=["GET"])
@@ -461,6 +483,8 @@ def reset_password_token_post(token):
         return "No password provided", 400
     if len(password) < 8 or len(password) > 40:
         return "Wrong password length", 400
+    if not re.compile(FIELD_REGEX).match(password):
+        return "Invalid character in password", 400
     success = change_user_password(login, password)
     if not success:
         flash("Nie można zmienić hasła, spróbuj ponownie później")

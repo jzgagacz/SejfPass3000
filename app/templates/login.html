@@ -3,8 +3,8 @@
 <form method="POST" action="/login">
     <h2>Logowanie:</h2>
     <ul id="formlist">
-        <li><input type="text" id="login" name="login" placeholder="Login" minlength="3" maxlength="20" required></li>
-        <li><input type="password" id="password" name="password" placeholder="Hasło" minlength="8" maxlength="40" required></li>
+        <li><input type="text" id="login" name="login" placeholder="Login" minlength="3" maxlength="20" required pattern="^[A-Za-z0-9!@#$%^&*,.=_|:+\/\\\-]*$" title="Pole może zawierać tylko litery bez polskich znaków, cyfry oraz znaki !@#$%^&*,./\|:+-_="></li>
+        <li><input type="password" id="password" name="password" placeholder="Hasło" minlength="8" maxlength="40" required pattern="^[A-Za-z0-9!@#$%^&*,.=_|:+\/\\\-]*$" title="Pole może zawierać tylko litery bez polskich znaków, cyfry oraz znaki !@#$%^&*,./\|:+-_="></li>
         {% if captcha %}
         <li>{{ recaptcha }}</li>
         {% endif %}

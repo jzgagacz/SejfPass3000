@@ -6,8 +6,8 @@
 <form onsubmit="return validateForm()" method="POST" action="{{ url_for('reset_password_token', token=token) }}">
     <h2>Wpisz nowe hasło:</h2>
     <ul id="formlist">
-        <li><input type="password" id="password" name="password" placeholder="Hasło" minlength="8" maxlength="40" required></li>
-        <li><input type="password" id="repeatpassword" placeholder="Powtórz hasło" minlength="8" maxlength="40" required></li>
+        <li><input type="password" id="password" name="password" placeholder="Hasło" minlength="8" maxlength="40" required pattern="^[A-Za-z0-9!@#$%^&*,.=_|:+\/\\\-]*$" title="Pole może zawierać tylko litery bez polskich znaków, cyfry oraz znaki !@#$%^&*,./\|:+-_="></li>
+        <li><input type="password" id="repeatpassword" placeholder="Powtórz hasło" minlength="8" maxlength="40" required pattern="^[A-Za-z0-9!@#$%^&*,.=_|:+\/\\\-]*$" title="Pole może zawierać tylko litery bez polskich znaków, cyfry oraz znaki !@#$%^&*,./\|:+-_="></li>
         <li><input type="submit" id="submitbtn" value="Zresetuj hasło"></li>
     </ul>
 </form>

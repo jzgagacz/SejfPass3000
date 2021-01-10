@@ -3,7 +3,7 @@
 <form method="POST" action="/reset">
     <h2>Aby zresetować hasło wpisz swoją nazwę użytkownika. Jeśli konto istnieje, na powiązany z nim adres e-mail zostanie wysłana widadomość z instrukcją:</h2>
     <ul id="formlist">
-        <li><input type="text" id="login" name="login" placeholder="Login" minlength="3" maxlength="20" required></li>
+        <li><input type="text" id="login" name="login" placeholder="Login" minlength="3" maxlength="20" required pattern="^[A-Za-z0-9!@#$%^&*,.=_|:+\/\\\-]*$" title="Pole może zawierać tylko litery bez polskich znaków, cyfry oraz znaki !@#$%^&*,./\|:+-_="></li>
         <li><input type="submit" id="submitbtn" value="Zresetuj hasło"></li>
     </ul>
 </form>
