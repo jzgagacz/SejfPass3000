@@ -10,6 +10,7 @@ from random import randrange
 import re
 from secrets import token_urlsafe
 from jwt import encode, decode
+from urllib.parse import unquote
 
 from os import getenv
 from dotenv import load_dotenv
@@ -365,9 +366,11 @@ def dashboard():
     if g.user is None:
         return redirect(url_for('login'))
     passwords = get_user_passwords(g.user)
+    masterhash = get_masterhash(g.user)
+    mastersalt = masterhash[0:29]
     if passwords is None:
         flash("Nie można pobrać listy haseł")
-    return render_template("dashboard.html", passwords=passwords, csrf = g.csrf)
+    return render_template("dashboard.html", passwords=passwords, mastersalt=mastersalt, csrf = g.csrf)
 
 @app.route('/dashboard', methods=["POST"])
 def dashboard_post():
@@ -421,12 +424,19 @@ def dashboard_post():
 
 @app.route('/masterhash', methods=["GET"])
 def masterhash():
+    mhash = request.args.get("mhash")
+    if mhash is None:
+        return "Cannot get hash", 400
     if g.user is None:
         return "Unauthorized", 401
+    mhash = unquote(mhash)
     hash = get_masterhash(g.user)
     if hash is None:
         return "Cannot get hash", 500
-    return hash, 200
+    validhash = "False"
+    if mhash == hash:
+        validhash = "True"
+    return validhash, 200
 
 @app.route('/sessions', methods=["GET"])
 def sessions():

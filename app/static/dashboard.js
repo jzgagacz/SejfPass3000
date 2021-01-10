@@ -5,8 +5,9 @@ var passform = document.getElementById("passform");
 var name = document.getElementById("name");
 var password = document.getElementById("password");
 var masterpass = document.getElementById("masterpass");
+var mastersalt = document.getElementById("mastersalt");
 
-var decryptbtn = document.getElementsByClassName("decryptbtn")
+var decryptbtn = document.getElementsByClassName("decryptbtn");
 
 function validPass(pass){
   if (!pass){
@@ -47,13 +48,14 @@ Array.prototype.slice.call(decryptbtn).forEach(element => {
     var salt = new Uint8Array(arrsalt)
     var iv = new Uint8Array(arriv)
     var masterpw = ev.target.parentNode.getElementsByClassName("masterfield")[0].value
-    getmasterhash(async function(result){
-      let masterhash = result;
-      if (masterhash == undefined || masterhash == "None"){
+    var masterhash = bcrypt.hashSync(masterpw, mastersalt.textContent)
+    getmasterhash(masterhash, async function(result){
+      let validmasterhash = result;
+      if (validmasterhash == undefined || validmasterhash == "None"){
           alert("Nie można sprawdzić hasła głównego")
           return false;
       }
-      if (!bcrypt.compareSync(masterpw, masterhash)){
+      if (validmasterhash != "True"){
           alert("Niepoprawne hasło główne")
           return false;
       }
@@ -121,10 +123,10 @@ async function encrypt(plaintext, salt, iv, pass) {
   );
 }
 
-function getmasterhash(callback) {
+function getmasterhash(cmasterhash, callback) {
   var result = undefined;
   var xhr = new XMLHttpRequest();
-  xhr.open("GET", "/masterhash");
+  xhr.open("GET", "/masterhash?mhash=" + encodeURIComponent(cmasterhash));
   xhr.onreadystatechange = function() {
       var DONE = 4;
       var OK = 200;
@@ -145,13 +147,14 @@ async function validatePassForm() {
     alert("Za słabe hasło. Hasło musi zawierać od 8 do 40 znaków i zawierać: wielką literę, małą literę, cyfrę oraz znak specjalny.");
     return false;
   }
-  getmasterhash(async function(result) {      
-    let masterhash = result;
-    if (masterhash == undefined || masterhash == "None"){
+  var masterhash = bcrypt.hashSync(masterpass.value, mastersalt.textContent)
+  getmasterhash(masterhash,async function(result) {      
+    let validmasterhash = result;
+    if (validmasterhash == undefined || validmasterhash == "None"){
       alert("Nie można sprawdzić hasła głównego")
       return false;
     }
-    if (!bcrypt.compareSync(masterpass.value, masterhash)){
+    if (validmasterhash != "True"){
       alert("Niepoprawne hasło główne")
       return false;
     }

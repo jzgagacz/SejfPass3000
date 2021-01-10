@@ -15,6 +15,9 @@
     </ul>
 </form>
 {% if passwords %}
+    {% if mastersalt %}
+    <span style="display:none" id="mastersalt">{{ mastersalt }}</span>
+    {% endif %}
     <ul>
         {% for password in passwords %}
         <li><span>{{ password }}</span></br>
