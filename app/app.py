@@ -1,14 +1,15 @@
-from logging import log
+from logging import exception, log
 from flask import Flask, render_template, request, redirect, url_for, flash, g
 from flask.helpers import make_response
 from flask_recaptcha import ReCaptcha
 import mariadb
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 from random import randrange
 import re
 from secrets import token_urlsafe
+from jwt import encode, decode
 
 from os import getenv
 from dotenv import load_dotenv
@@ -42,6 +43,20 @@ recaptcha = ReCaptcha(app=app)
 db = None
 cursor = None
 
+def generate_password_reset_token(login):
+    payload = {
+        "reset_pass_for":login,
+        "exp":datetime.utcnow() + timedelta(seconds = 900)
+    }
+    token = encode(payload, SECRET_KEY, algorithm='HS256')
+    return token
+
+def decode_password_reset_token(token):
+    try:
+        decoded = decode(token, SECRET_KEY, algorithms=['HS256'])
+        return decoded
+    except:
+        return None
 
 def user_exists(login):
     ret = None
@@ -59,6 +74,15 @@ def save_user(login, password, masterhash, email):
     except:
         return False
 
+def change_user_password(login, password):
+    try:
+        hashed = hashpw(password.encode(), gensalt()).decode()
+        cursor.execute("UPDATE users SET hashedpass=? WHERE login=?", (hashed, login))
+        db.commit()
+        return True
+    except:
+        return False
+
 def get_login_attempts(login):
     try:
         cursor.execute("SELECT loginattempts FROM users WHERE login=?", (login,))
@@ -70,7 +94,15 @@ def get_login_attempts(login):
         return attempts
     except:
         return 0
-
+def get_user_email(login):
+    try:
+        cursor.execute("SELECT email FROM users WHERE login=?", (login,))
+        email = None
+        for (e,) in cursor:
+            email = e
+        return email
+    except:
+        return None
 def check_password(login, password):
     try:
         cursor.execute("SELECT hashedpass FROM users WHERE login=?", (login,))
@@ -386,6 +418,53 @@ def sessions():
     if sessions is None:
         flash("Nie można pobrać listy sesji")
     return render_template('sessions.html', sessions=sessions)
+
+@app.route('/reset', methods=["GET"])
+def reset_password():
+    return render_template('reset.html')
+
+
+@app.route('/reset', methods=["POST"])
+def reset_password_post():
+    login = request.form.get("login")
+    if login is None:
+        return "No login provided", 400
+    if len(login) < 3 or len(login) > 20:
+        return "Wrong login length", 400
+    try: 
+        s = user_exists(login)
+    except:
+        flash("Nie można połączyć się z bazą danych")
+        return redirect(url_for('index'))
+    if s == 1:
+        email = get_user_email(login)
+        token = generate_password_reset_token(login)
+        url = request.base_url + "/" + token
+        print(f"Wysłałbym wiadomość pod adres {email} o treści: Aby zresetować swoje hasło przejdź pod link {url}",flush=True)
+    return redirect(url_for('index'))
+
+@app.route('/reset/<token>', methods=["GET"])
+def reset_password_token(token):
+    decoded = decode_password_reset_token(token)
+    if decoded is None:
+        return "Wrong password reset token", 400
+    return render_template('reset_token.html', token=token)
+
+@app.route('/reset/<token>', methods=["POST"])
+def reset_password_token_post(token):
+    decoded = decode_password_reset_token(token)
+    if decoded is None:
+        return "Wrong password reset token", 400
+    login = decoded.get("reset_pass_for")
+    password = request.form.get("password")
+    if password is None:
+        return "No password provided", 400
+    if len(password) < 8 or len(password) > 40:
+        return "Wrong password length", 400
+    success = change_user_password(login, password)
+    if not success:
+        flash("Nie można zmienić hasła, spróbuj ponownie później")
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0")
