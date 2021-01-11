@@ -218,6 +218,7 @@ try:
     db = mariadb.connect(host=SQL_HOST,user=SQL_USR, password=SQL_PASS, database=SQL_DB)
     cursor = db.cursor()
 except:
+    time.sleep(10)
     initdb = mariadb.connect(host=SQL_HOST,user=SQL_USR, password=SQL_PASS)
     coursor = initdb.cursor()
     coursor.execute(f"DROP DATABASE IF EXISTS {SQL_DB}")

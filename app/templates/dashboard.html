@@ -4,6 +4,9 @@
 <script src="/static/dashboard.js" defer></script>
 {% endblock %}
 {% block content %}
+{% if mastersalt %}
+<span style="display:none" id="mastersalt">{{ mastersalt }}</span>
+{% endif %}
 <h2>Lista haseł:</h2>
 <form onsubmit="validatePassForm(); return false" method="POST" action="/dashboard" id ="passform" enctype="multipart/form-data">
     <ul id="formlist">
@@ -15,9 +18,6 @@
     </ul>
 </form>
 {% if passwords %}
-    {% if mastersalt %}
-    <span style="display:none" id="mastersalt">{{ mastersalt }}</span>
-    {% endif %}
     <ul>
         {% for password in passwords %}
         <li><span>{{ password }}</span></br>
